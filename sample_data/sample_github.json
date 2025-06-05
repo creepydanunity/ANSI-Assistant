@@ -1,0 +1,25 @@
+{
+  "issue": {
+    "id": "issue-123",
+    "title": "Fix login redirect bug",
+    "html_url": "https://github.com/example/repo/issues/123",
+    "state": "open"
+  },
+  "pull_request": {
+    "id": "pr-456",
+    "title": "Fix login bug",
+    "html_url": "https://github.com/example/repo/pull/456"
+  },
+  "commit": {
+    "sha": "abc123def456",
+    "commit": {
+      "message": "Fix login redirect by updating middleware",
+      "author": {
+        "date": "2025-06-05T14:33:18.480349"
+      }
+    },
+    "author": {
+      "login": "alice"
+    }
+  }
+}
