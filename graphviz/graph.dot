@@ -1,0 +1,51 @@
+digraph AIAssistant {
+  rankdir=LR;
+  node [shape=box, style=filled, color="#eeeeee"];
+
+  # Core entities
+  User         [label="User"];
+  Project      [label="Project"];
+  TrelloCard   [label="TrelloCard"];
+  GitHubIssue  [label="GitHubIssue"];
+  PullRequest  [label="PullRequest"];
+  Commit       [label="Commit"];
+  Branch       [label="Branch"];
+  Component    [label="Component"];
+  Discussion   [label="Discussion"];
+  Release      [label="Release"];
+  Document     [label="Document"];
+  LLMTask      [label="LLMTask"];
+
+  # Relationships
+  User -> Project      [label="OWNS"];
+  User -> Commit       [label="WROTE"];
+  User -> TrelloCard   [label="ASSIGNED_TO"];
+  User -> Discussion   [label="PARTICIPATED_IN"];
+
+  Project -> TrelloCard  [label="HAS"];
+  Project -> GitHubIssue [label="HAS"];
+  Project -> Discussion  [label="HAS"];
+  Project -> Document    [label="HAS"];
+  Project -> Release     [label="HAS"];
+
+  TrelloCard -> GitHubIssue [label="LINKED_TO"];
+  TrelloCard -> Discussion   [label="CREATED_FROM"];
+
+  GitHubIssue -> PullRequest [label="RESOLVED_BY"];
+  GitHubIssue -> Discussion  [label="DISCUSSED_IN"];
+
+  PullRequest -> Commit  [label="CONTAINS"];
+  Commit -> Branch       [label="PART_OF"];
+  Commit -> Component    [label="TOUCHES"];
+
+  Discussion -> Component  [label="MENTIONS"];
+  Discussion -> TrelloCard [label="CREATES"];
+
+  Release -> Commit     [label="INCLUDES"];
+  Document -> Project   [label="DESCRIBES"];
+  Document -> Release   [label="SUMMARIZES"];
+  LLMTask -> User       [label="GEN_FOR"];
+  LLMTask -> Project    [label="GEN_FOR"];
+  LLMTask -> Document   [label="OUTPUTS"];
+  LLMTask -> Discussion [label="BASED_ON"];
+}

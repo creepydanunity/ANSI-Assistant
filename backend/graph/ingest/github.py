@@ -38,7 +38,7 @@ def ingest_pull_request(conn, pr: dict, issue_id: str):
     })
 
 
-def ingest_commit(conn, commit: dict, pr_id: str, branch_name: str, component_name: str = None):
+def ingest_commit(conn, commit: dict, pr_id: str, branch_name: str, component_name: str = ""):
     """
     Добавляет Commit, связывает его с PR, веткой, автором и компонентом.
     """

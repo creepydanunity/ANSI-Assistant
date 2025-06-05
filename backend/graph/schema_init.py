@@ -1,19 +1,47 @@
-CONSTRAINTS = [
-    "CREATE CONSTRAINT IF NOT EXISTS ON (u:User) ASSERT u.id IS UNIQUE",
-    "CREATE CONSTRAINT IF NOT EXISTS ON (p:Project) ASSERT p.id IS UNIQUE",
-    "CREATE CONSTRAINT IF NOT EXISTS ON (t:TrelloCard) ASSERT t.id IS UNIQUE",
-    "CREATE CONSTRAINT IF NOT EXISTS ON (i:GitHubIssue) ASSERT i.id IS UNIQUE",
-    "CREATE CONSTRAINT IF NOT EXISTS ON (pr:PullRequest) ASSERT pr.id IS UNIQUE",
-    "CREATE CONSTRAINT IF NOT EXISTS ON (c:Commit) ASSERT c.sha IS UNIQUE",
-    "CREATE CONSTRAINT IF NOT EXISTS ON (b:Branch) ASSERT b.name IS UNIQUE",
-    "CREATE CONSTRAINT IF NOT EXISTS ON (m:Component) ASSERT m.name IS UNIQUE",
-    "CREATE CONSTRAINT IF NOT EXISTS ON (d:Discussion) ASSERT d.id IS UNIQUE",
-    "CREATE CONSTRAINT IF NOT EXISTS ON (r:Release) ASSERT r.name IS UNIQUE",
-    "CREATE CONSTRAINT IF NOT EXISTS ON (doc:Document) ASSERT doc.id IS UNIQUE",
-    "CREATE CONSTRAINT IF NOT EXISTS ON (task:LLMTask) ASSERT task.id IS UNIQUE",
-]
+from neo4j import GraphDatabase
 
+NEO4J_URI = "bolt://localhost:7687"
+NEO4J_USER = "neo4j"
+NEO4J_PASSWORD = "neo4j123"
 
-def setup_constraints(connector):
-    for query in CONSTRAINTS:
-        connector.run(query)
+class GraphSchemaInitializer:
+
+    def __init__(self, uri, user, password):
+        self.driver = GraphDatabase.driver(uri, auth=(user, password))
+
+    def close(self):
+        self.driver.close()
+
+    def run(self):
+        with self.driver.session() as session:
+            session.execute_write(self.create_constraints)
+
+    @staticmethod
+    def create_constraints(tx):
+        constraints = [
+            ("User", "id"),
+            ("Project", "id"),
+            ("TrelloCard", "id"),
+            ("GitHubIssue", "id"),
+            ("PullRequest", "id"),
+            ("Commit", "sha"),
+            ("Branch", "name"),
+            ("Component", "name"),
+            ("Discussion", "id"),
+            ("Release", "name"),
+            ("Document", "id"),
+            ("LLMTask", "id"),
+        ]
+
+        for label, field in constraints:
+            query = (
+                f"CREATE CONSTRAINT IF NOT EXISTS "
+                f"FOR (n:{label}) REQUIRE n.{field} IS UNIQUE"
+            )
+            tx.run(query)
+
+if __name__ == "__main__":
+    initializer = GraphSchemaInitializer(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+    initializer.run()
+    initializer.close()
+    print("Graph schema initialized.")

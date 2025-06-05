@@ -10,7 +10,7 @@ class Neo4jConnector:
 
     def close(self):
         self.driver.close()
-
+    
 # ес че говорит аишка вот так юзать эту хуету
 # from graph.neo4j_connector import Neo4jConnector
 # conn = Neo4jConnector()
