@@ -1,16 +1,17 @@
-import json
+import logging
 from fastapi import FastAPI
 from auth.routes import router as auth_router
-from utilities.chunking import ingest_repo
-from llm.embedding import process_chunks
-from llm.summarize import enrich_chunks_with_descriptions
-from core.config import settings
+from api.routes import router as api_router
 
-OUTPUT_PATH = "chunks_with_embeddings.jsonl"
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+
 app = FastAPI(title="AI Project Assistant")
 
-# Register routers
 app.include_router(auth_router)
+app.include_router(api_router)
 
 @app.get("/")
 def root():

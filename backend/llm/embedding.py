@@ -4,8 +4,7 @@ from openai import OpenAI
 from tqdm import tqdm
 from core.config import settings
 from openai import OpenAI
-
-client = OpenAI(api_key=settings.openai_api_key)
+from .config import client
 
 MODEL = "text-embedding-ada-002"
 
