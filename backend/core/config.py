@@ -5,9 +5,11 @@ class Settings(BaseSettings):
     database_url: AnyUrl
     secret_key: str
     access_token_expire_minutes: int = 15
-    refresh_token_expire_minutes: int = 1440
+    github_token: str
     mode: str = "development" # TODO: Change for prod
-    
+    openai_api_key: str
+    algorithm: str = "SHA256"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
