@@ -88,7 +88,7 @@ async def add_repo_to_project(
 
     return new_repo
 
-@router.post("/projects/{project_id}/repo/{repo_id}/reload")
+@router.get("/projects/{project_id}/repo/{repo_id}/reload")
 async def update_chunks(
     project_id: int,
     repo_id: int,
