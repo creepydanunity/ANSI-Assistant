@@ -17,11 +17,7 @@ class PostgreConfig():
 class ChromaConfig():
     def __init__(self):
         self.client_chroma = chromadb.PersistentClient(path="chromadb", settings=Settings(persist_directory="chroma_db"))
-        self.collection = self.client_chroma.get_or_create_collection(name="codebase")
         self.catalog_id: str = "__project_catalog__"
-    
-    def get_collection(self) -> chromadb.Collection:
-        return self.collection
     
     def get_catalog_id(self) -> str:
         return self.catalog_id

@@ -1,56 +1,36 @@
 from collections import defaultdict
+from datetime import time
 import json
 import logging
+from time import sleep
 from typing import Any, Dict, List, Mapping, Sequence
-
+from .dbconfig import chromaConfig
 from tqdm import tqdm
 from .dbconfig import chromaConfig
 
 logger = logging.getLogger("db.util")
 
-def load_chunks_batched(chunks, collection, batch_size=64):
-    documents, metadatas, embeddings, ids = [], [], [], []
-
+def load_chunks(chunks):
+    collection = chromaConfig.client_chroma.get_or_create_collection(name="codebase")
     for i, obj in enumerate(chunks):
-        documents.append(obj["description"])
-        metadatas.append({
-            "file_path": obj["file_path"],
-            "start_line": obj["start_line"],
-            "end_line": obj["end_line"],
-            "type": obj.get("type"),
-            "name": obj.get("name"),
-        })
-        embeddings.append(obj["embedding"])
-        ids.append(f"{obj.get('type','chunk')}_{i}")
-
-        if len(documents) >= batch_size:
-            logger.info(f"load_chunks_batched: adding batch #{i // batch_size}")
-            collection.add(documents=documents,
-                           metadatas=metadatas,
-                           embeddings=embeddings,
-                           ids=ids)
-            
-            logger.info(f"load_chunks_batched: added batch #{i // batch_size}")
-            documents.clear()
-            metadatas.clear()
-            embeddings.clear()
-            ids.clear()
-        
-    if documents:
-        logger.info("load_chunks_batched: adding final batch")
         collection.add(
-            documents=documents,
-            metadatas=metadatas,
-            embeddings=embeddings,
-            ids=ids,
+            documents=[obj["description"]],
+            metadatas=[{
+                "file_path": obj["file_path"],
+                "start_line": obj["start_line"],
+                "end_line": obj["end_line"],
+                "type": obj.get("type"),
+                "name": obj.get("name")
+            }],
+            embeddings=[obj["embedding"]],
+            ids=[f"{obj.get('type', 'chunk')}_{i}"]
         )
-        logger.info("load_chunks_batched: added final batch")
+        sleep(1)
 
 
 def store_embeddings(chunks):
-    collection = chromaConfig.get_collection()
-    load_chunks_batched(chunks, collection)
-    return {"status": "reloaded", "count": collection.count()}
+    load_chunks(chunks)
+    return {"status": "reloaded"}
 
 def generate_catalog() -> None:
     """
@@ -59,7 +39,7 @@ def generate_catalog() -> None:
     3) Builds a high‐level summary listing functions/classes under each file.
     4) Upserts the resulting “catalog chunk” back into Chroma under CATALOG_ID.
     """
-    collection = chromaConfig.get_collection()
+    collection = chromaConfig.client_chroma.get_or_create_collection(name="codebase")
 
     # Fetch every stored document+metadata pair from Chroma
     all_items = collection.get(include=["documents", "metadatas"])

@@ -1,13 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Any, Dict, List, Mapping, Sequence
-from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
-from api.schemas import AskResponse, AskRequest, ProjectRequest, ProjectResponse, GithubResponse, RepoRequest, RepoResponse
+from api.schemas import AskResponse, AskRequest, ProjectRequest, ProjectResponse, RepoRequest, RepoResponse
 from llm.prompts import get_ask_prompt, get_ask_system_prompt
 from db.util import generate_catalog, store_embeddings
-from core.deps import get_chromadb, get_db
+from core.deps import get_db
 from auth.utils import get_current_user
 from core.models import Project, ProjectRepo, UserProject
 from llm.api import process_github, process_question
@@ -133,7 +132,7 @@ async def update_chunks(
     
     logger.info(f"Calling store_embeddings({len(chunks)}")
     try:
-        result = await run_in_threadpool(store_embeddings, chunks)
+        result = store_embeddings(chunks)
     except Exception as exc:
         logger.exception("store_embeddings failed: " + str(exc))
         raise HTTPException(status_code=500, detail="Failed while storing embeddings in Chroma")
@@ -148,7 +147,7 @@ def ask_user_question(
     data: AskRequest,
     user_id: int = Depends(get_current_user),
 ) -> Any:
-    collection = get_chromadb()
+    collection = chromaConfig.client_chroma.get_or_create_collection(name="codebase")
     query_vec = get_embedding(data.question)
 
     results = collection.query(
