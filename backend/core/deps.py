@@ -1,7 +1,6 @@
 from typing import AsyncGenerator
-from chromadb import Collection
 from sqlalchemy.ext.asyncio import AsyncSession
-from db.dbconfig import postgresConfig, chromaConfig
+from db.dbconfig import postgresConfig
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     postgreSession = postgresConfig.get_session()

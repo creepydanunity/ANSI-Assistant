@@ -1,3 +1,4 @@
+from llm.prompts import get_intent_prompt
 from .embedding import process_chunks
 from .summarize import enrich_chunks_with_descriptions
 from .config import client
@@ -19,3 +20,13 @@ def process_question(system_prompt: str, prompt: str, mode: str = "strict"):
     )
 
     return response
+
+def classify_mode(question: str) -> str:
+    intent_prompt = get_intent_prompt(question)
+
+    response = client.chat.completions.create(
+        model="gpt-4",
+        messages=[{"role": "user", "content": intent_prompt}],
+        temperature=0
+    )
+    return str(response.choices[0].message.content).strip().lower()

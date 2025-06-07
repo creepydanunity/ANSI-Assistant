@@ -14,3 +14,16 @@ def get_ask_system_prompt(mode: str = "strict"):
 
 def get_ask_prompt(context, question):
     return f"""The following are code-related descriptions from a project:\n{context}\n\nQuestion: {question}\nAnswer:"""
+
+def get_intent_prompt(question):
+    return f"""
+    Classify the following question as either "strict" or "advisory".
+
+    Rules:
+    - Use "strict" if the question requires factual answers strictly from code.
+    - Use "advisory" if the question asks for design advice, recommendations, or architectural insights.
+
+    Only output one word: strict or advisory.
+
+    Question: {question}
+    Answer:"""

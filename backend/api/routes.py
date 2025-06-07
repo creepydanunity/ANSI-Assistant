@@ -9,7 +9,7 @@ from db.util import generate_catalog, store_embeddings
 from core.deps import get_db
 from auth.utils import get_current_user
 from core.models import Project, ProjectRepo, UserProject
-from llm.api import process_github, process_question
+from llm.api import classify_mode, process_github, process_question
 from llm.embedding import get_embedding
 from db.dbconfig import chromaConfig
 
@@ -138,15 +138,14 @@ async def update_chunks(
         raise HTTPException(status_code=500, detail="Failed while storing embeddings in Chroma")
     logger.info("store_embeddings completed")
 
-    generate_catalog()
-
-    return {"status": "ok", "message": f"Chunks ({result["count"]}) reloaded and catalog updated"}
+    return {"status": "ok", "message": f"Chunks reloaded"}
 
 @router.post("/ask", response_model=AskResponse)
 def ask_user_question(
     data: AskRequest,
     user_id: int = Depends(get_current_user),
 ) -> Any:
+    mode = classify_mode(data.question)
     collection = chromaConfig.client_chroma.get_or_create_collection(name="codebase")
     query_vec = get_embedding(data.question)
 
@@ -179,23 +178,16 @@ def ask_user_question(
         context_parts.append(f"[{file_path}:{start_line}-{end_line}]\n{d}")
 
     # Добавим обзор проекта, если режим advisory
-    if data.mode == "advisory":
+    if mode == "advisory":
         try:
-            catalog_item = collection.get(
-                ids=[chromaConfig.get_catalog_id()],
-                include=["documents", "metadatas"]
-            )
-
-            catalog_docs = catalog_item.get("documents") or []
-            if catalog_docs:
-                catalog_description = catalog_docs[0]
-                context_parts.insert(0, f"[Project Catalog]\n{catalog_description}")
+            catalog = generate_catalog()
+            context_parts.insert(0, catalog)
         except Exception:
             pass
 
     context = "\n\n".join(context_parts)
-    system_prompt = get_ask_system_prompt(data.mode)
+    system_prompt = get_ask_system_prompt(mode)
     prompt = get_ask_prompt(context, data.question)
-    response = process_question(system_prompt, prompt, data.mode)
+    response = process_question(system_prompt, prompt, mode)
 
-    return {"answer": response.choices[0].message.content}
+    return {"mode": mode, "answer": response.choices[0].message.content}

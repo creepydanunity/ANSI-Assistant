@@ -6,9 +6,9 @@ from pydantic import BaseModel
 class AskRequest(BaseModel):
     question: str
     project_id: int
-    mode: str = "strict" # "strict" or "advisory"
 
 class AskResponse(BaseModel):
+    mode: str
     answer: str
 
 class GithubRequest(BaseModel):
