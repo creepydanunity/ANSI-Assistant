@@ -2,12 +2,12 @@ from pydantic import AnyUrl
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    database_url: AnyUrl
+    postgres_database_url: AnyUrl
     secret_key: str
-    access_token_expire_minutes: int = 15
-    refresh_token_expire_minutes: int = 1440
-    mode: str = "development" # TODO: Change for prod
-    
+    access_token_expire_minutes: int = 60
+    openai_api_key: str
+    algorithm: str = "HS256"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
