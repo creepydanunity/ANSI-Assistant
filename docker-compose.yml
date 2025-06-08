@@ -23,7 +23,7 @@ services:
     depends_on:
       - db
     ports:
-      - "8000:8000"
+      - "80:8000"
     volumes:
       - alembic_versions:/app/alembic/versions
       - chromadb_data:/app/chromadb

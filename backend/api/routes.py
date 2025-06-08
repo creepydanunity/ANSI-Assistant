@@ -119,6 +119,19 @@ async def add_repo_to_project(
     await db.commit()
     await db.refresh(new_repo)
 
+    github_url = data.repo_url
+    github_token = data.token
+
+    try:
+        chunks = await process_github(github_url, github_token)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process GitHub repo: {e}")
+
+    try:
+        result = store_chunks(project_id, new_repo.id, chunks)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Failed while storing embeddings in Chroma: {exc}")
+    
     return new_repo
 
 @router.get("/projects/{project_id}/reload")
@@ -238,6 +251,9 @@ def ask_user_question(
 
     results = collection.query(
         query_embeddings=[query_vec],
+        where={
+                "project_id": data.project_id
+            },
         n_results=5,
         include=["documents", "metadatas"]
     )
@@ -267,7 +283,7 @@ def ask_user_question(
     # Добавим обзор проекта, если режим advisory
     if mode == "advisory":
         try:
-            catalog = generate_catalog()
+            catalog = generate_catalog(data.project_id)
             context_parts.insert(0, catalog)
         except Exception:
             pass
