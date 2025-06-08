@@ -1,4 +1,5 @@
 from typing import Optional
+import httpx
 import requests
 import base64
 from urllib.parse import urlparse
@@ -46,12 +47,16 @@ def get_file_tree(owner: str, repo: str, branch: str, token: str) -> list[str]:
     return valid_paths
 
 
-def get_file_content(owner: str, repo: str, path: str, token: str) -> str:
+async def get_file_content(owner: str, repo: str, path: str, token: str) -> str:
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
-    r = requests.get(url, headers={"Authorization": f"token {token}"})
-    r.raise_for_status()
-    content = r.json()['content']
-    return base64.b64decode(content).decode('utf-8')
+    headers = {
+        "Authorization": f"token {token}",
+    }
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        response.raise_for_status()
+        content = response.json()['content']
+        return base64.b64decode(content).decode('utf-8')
 
 
 def extract_chunks(code: str, file_path: str) -> list[dict]:
@@ -177,7 +182,7 @@ def extract_chunks(code: str, file_path: str) -> list[dict]:
     return chunks
 
 
-def ingest_repo(repo_url: str, token: str = "") -> list[dict]:
+async def ingest_repo(repo_url: str, token: str = "") -> list[dict]:
     owner, repo = parse_github_url(repo_url)
     branch = get_default_branch(owner, repo, token)
     paths = get_file_tree(owner, repo, branch, token)
@@ -185,7 +190,7 @@ def ingest_repo(repo_url: str, token: str = "") -> list[dict]:
     all_chunks: list[dict] = []
     for path in paths:
         try:
-            code = get_file_content(owner, repo, path, token)
+            code = await get_file_content(owner, repo, path, token)
             chunks = extract_chunks(code, path)
             all_chunks.extend(chunks)
         except Exception as e:

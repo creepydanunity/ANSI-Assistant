@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException
+from urllib.parse import urlparse
+from fastapi import APIRouter, Depends, HTTPException, Request
 from typing import Any, Dict, List, Mapping, Sequence
+import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import logging
 from api.schemas import AskResponse, AskRequest, ProjectRequest, ProjectResponse, RepoRequest, RepoResponse
+from utilities.pr_parsing import categorize_files, fetch_changed_files
 from llm.prompts import get_ask_prompt, get_ask_system_prompt
-from db.util import generate_catalog, store_embeddings
+from db.util import add_chunks, delete_chunks, generate_catalog, move_chunks, store_chunks, update_chunks
 from core.deps import get_db
 from auth.utils import get_current_user
 from core.models import Project, ProjectRepo, UserProject
@@ -76,22 +79,51 @@ async def add_repo_to_project(
     if not user_project:
         raise HTTPException(status_code=403, detail="User does not have access to this project")
     
+    parsed = urlparse(data.repo_url)
+    parts = parsed.path.strip("/").split("/")
+    if len(parts) < 2:
+        raise HTTPException(status_code=400, detail="Invalid GitHub URL")
+    owner, repo = parts[0], parts[1].removesuffix(".git")
+
+    hook_url = f"https://api.github.com/repos/{owner}/{repo}/hooks"
+    payload = {
+        "name": "web",
+        "active": True,
+        "events": ["pull_request"],
+        "config": {
+            "url": "http://64.225.65.211/webhook/github",
+            "content_type": "json",
+            "insecure_ssl": "1"
+        }
+    }
+    headers = {
+        "Authorization": f"token {data.token}",
+    }
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(hook_url, json=payload, headers=headers)
+    if resp.status_code >= 300:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to create GitHub webhook: {resp.status_code} {resp.text}"
+        )
+    
     new_repo = ProjectRepo(
         name=data.name,
         repo_url=data.repo_url,
         token=data.token,
         project_id=project_id
     )
+
     db.add(new_repo)
     await db.commit()
     await db.refresh(new_repo)
 
     return new_repo
 
-@router.get("/projects/{project_id}/repo/{repo_id}/reload")
-async def update_chunks(
+@router.get("/projects/{project_id}/reload")
+async def reload_chunks(
     project_id: int,
-    repo_id: int,
     user_id: int = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ) -> Any:
@@ -112,33 +144,88 @@ async def update_chunks(
     stmt = (
         select(ProjectRepo)
         .filter(
-            ProjectRepo.id == repo_id,
             ProjectRepo.project_id == project_id
         )
     )
     
     result = await db.execute(stmt)
-    repo = result.scalar_one_or_none()
-    if not repo:
+    repos = result.all()
+
+    if not repos:
         raise HTTPException(status_code=404, detail="Repository not found in this project")
 
-    github_url = repo.repo_url
-    github_token = repo.token
+    for repo in repos:
+        github_url = repo.repo_url
+        github_token = repo.token
 
-    try:
-        chunks = process_github(github_url, github_token)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to process GitHub repo: {e}")
+        try:
+            chunks = await process_github(github_url, github_token)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to process GitHub repo: {e}")
     
-    logger.info(f"Calling store_embeddings({len(chunks)}")
-    try:
-        result = store_embeddings(chunks)
-    except Exception as exc:
-        logger.exception("store_embeddings failed: " + str(exc))
-        raise HTTPException(status_code=500, detail="Failed while storing embeddings in Chroma")
-    logger.info("store_embeddings completed")
+        try:
+            result = store_chunks(project_id, repo.id, chunks)
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail="Failed while storing embeddings in Chroma")
 
     return {"status": "ok", "message": f"Chunks reloaded"}
+
+@router.post("/webhook/github")
+async def github_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    payload = await request.json()
+
+    if not (
+        payload.get("action") == "closed" 
+        and payload.get("pull_request", {}).get("merged") is True
+    ):
+        return {"status": "ignored"}
+
+    pr_number = payload["pull_request"]["number"]
+    owner = payload["repository"]["owner"]["login"]
+    repo = payload["repository"]["name"]
+
+    raw_url = f"https://github.com/{owner}/{repo}"
+
+    stmt = (
+        select(ProjectRepo)
+        .filter(
+            ProjectRepo.repo_url == raw_url
+        )
+    )
+
+    result = await db.execute(stmt)
+    repo_obj = result.scalar_one_or_none()
+    
+    if not repo_obj:
+        raise HTTPException(404, "Repository token not found")
+    
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files"
+
+    files = await fetch_changed_files(api_url, repo_obj.token)
+
+    categorized_files = await categorize_files(owner, repo, files, repo_obj.token)
+
+    for removed_file in categorized_files["removed"]:
+        delete_chunks(repo_obj.project_id, repo_obj.id, removed_file["path"])
+
+    for renamed_file in categorized_files["renamed"]:
+        move_chunks(repo_obj.project_id, repo_obj.id, renamed_file["old_path"], renamed_file["path"])
+
+    for added_file in categorized_files["added"]:
+        await add_chunks(repo_obj.project_id, repo_obj.id, added_file["path"], added_file["content"])
+
+    for modified_file in categorized_files["modified"]:
+        await update_chunks(repo_obj.project_id, repo_obj.id, modified_file["path"], modified_file["content"])
+
+    logger.info(categorized_files)
+
+    return {
+        "status": "processed",
+        "removed": len(categorized_files["removed"]),
+        "renamed": len(categorized_files["renamed"]),
+        "added": len(categorized_files["added"]),
+        "modified": len(categorized_files["modified"])
+    }
 
 @router.post("/ask", response_model=AskResponse)
 def ask_user_question(
