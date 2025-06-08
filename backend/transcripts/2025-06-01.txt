@@ -1,0 +1,20 @@
+00:00 – Dmitry:
+Let’s sync. What’s the status on the analytics dashboard? I feel like it’s dragging.
+
+00:03 – Olga:
+Yeah, the UI for it is still not ready. I only started the first layout
+
+00:12 – Olga:
+Also, backend API — I saw the spec says /metrics/overview and /metrics/days, but that’s different from what Ivan wrote?
+
+00:16 – Ivan:
+I implemented /api/v2/metrics/summary and /metrics/daily — that was agreed on.
+
+00:19 – Dmitry:
+Hmm, we’ll have to align those later.
+
+00:21 – Ivan:
+By the way, about voice: we said we’ll use local Whisper over WebSocket, right?
+
+00:24 – Dmitry:
+Yeah, lets say we do it

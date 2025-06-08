@@ -1,0 +1,41 @@
+00:00 – Dmitry:
+Today’s goal is to lock down how we implement the smart reminder system. Two core functions: scheduling reminders and parsing user intent.
+
+00:06 – Olga:
+From frontend, I can expose a modal where users type things like "Remind me to send report on Friday at 9 AM". Should we validate input before sending?
+
+00:12 – Ivan:
+No need — just send raw text to backend. I’ll handle it with a function called parse_reminder_intent(text: str) -> ReminderObject.
+
+00:18 – Dmitry:
+What’s inside ReminderObject?
+
+00:20 – Ivan:
+Fields like:
+  "action" "datetime" "repeat" "raw_text"
+  
+I’ll use duckling for time parsing and a small rule-based extractor for the verb.
+
+00:30 – Olga:
+Cool. Once parsed, where does it go?
+
+00:32 – Ivan:
+Second function is schedule_reminder(reminder: ReminderObject). It inserts into a reminders table with a status, user_id, and fire_at timestamp.
+
+00:38 – Dmitry:
+Do we use Celery or cron?
+
+00:40 – Ivan:
+Celery beat + Redis. Each minute it checks for due fire_at values and queues a delivery job.
+
+00:44 – Olga:
+What if user deletes the reminder?
+
+00:46 – Ivan:
+Then we soft-delete it — flag is_active = false. The task runner skips it automatically.
+
+00:49 – Dmitry:
+Make sure to add observability — we’ll want metrics on reminders fired, snoozed, failed.
+
+00:52 – Ivan:
+Yep, I’ll emit Prometheus events inside schedule_reminder.

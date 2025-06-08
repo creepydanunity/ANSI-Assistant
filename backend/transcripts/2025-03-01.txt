@@ -1,0 +1,19 @@
+00:00 – Anna:
+Okay team, today we decide what goes into the July sprint. Thoughts?
+
+00:05 – Dmitry:
+Let’s start with the Analytics Dashboard. The UI for it is fully done. We just need the backend hooked up.
+
+00:12 – Ivan:
+Got it. I’ll expose two endpoints:
+GET /api/v2/metrics/summary and GET /api/v2/metrics/daily
+I’ll also add basic JWT-based access control.
+
+00:20 – Anna:
+Awesome. And the voice command stuff?
+
+00:22 – Dmitry:
+Still on hold. We’re undecided on the STT backend. Maybe Whisper?
+
+00:26 – Ivan:
+I’d go with whisper.cpp locally. If we use WebSocket to stream audio chunks and debounce inputs in ~10–15s windows, that should work well. No need for external services.

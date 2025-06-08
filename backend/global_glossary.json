@@ -1,0 +1,50 @@
+[
+  {
+    "term": "ТЗ",
+    "model_guess": "техническое задание"
+  },
+  {
+    "term": "МС",
+    "model_guess": "мобильная связь"
+  },
+  {
+    "term": "ER-диаграмма",
+    "model_guess": "Entity-Relationship Diagram"
+  },
+  {
+    "term": "БД",
+    "model_guess": "база данных"
+  },
+  {
+    "term": "API-спецификейшн",
+    "model_guess": "Application Programming Interface Specification"
+  },
+  {
+    "term": "CI/CD",
+    "model_guess": "Continuous Integration/Continuous Delivery"
+  },
+  {
+    "term": "GH Actions",
+    "model_guess": "GitHub Actions"
+  },
+  {
+    "term": "L/R-пробы",
+    "model_guess": "Load/Readiness Probes"
+  },
+  {
+    "term": "K8s",
+    "model_guess": "Kubernetes"
+  },
+  {
+    "term": "RTO",
+    "model_guess": "Recovery Time Objective"
+  },
+  {
+    "term": "RPO",
+    "model_guess": "Recovery Point Objective"
+  },
+  {
+    "term": "SLA",
+    "model_guess": "Service Level Agreement"
+  }
+]
