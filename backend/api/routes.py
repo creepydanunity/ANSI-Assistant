@@ -266,7 +266,7 @@ async def github_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     for added_file in categorized_files["added"]:
         await add_chunks(repo_obj.project_id, repo_obj.id, added_file["path"], added_file["content"])
-        summaries = analyze_added(added_file)
+    #summaries = analyze_added(categorized_files["added"])
 
     for modified_file in categorized_files["modified"]:
         await update_chunks(repo_obj.project_id, repo_obj.id, modified_file["path"], modified_file["content"])
