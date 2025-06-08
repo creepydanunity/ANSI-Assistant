@@ -40,7 +40,7 @@ class Project(Base):
     repos: Mapped[List["ProjectRepo"]] = relationship(
         "ProjectRepo", back_populates="project"
     )
-    conversation_sessions: Mapped[List["Transcription"]] = relationship(
+    transcriptions: Mapped[List["Transcription"]] = relationship(
         "Transcription", back_populates="project"
     )
 
