@@ -311,7 +311,7 @@ async def github_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         "modified": len(categorized_files["modified"])
     }
 
-@router.get("/project/{project_id}/alignments", response_model=AlignmentsResponse)
+@router.get("/projects/{project_id}/alignments", response_model=AlignmentsResponse)
 async def get_project_alignments(
     project_id: int,
     user_id: int = Depends(get_current_user),
