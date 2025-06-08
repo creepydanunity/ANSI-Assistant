@@ -43,6 +43,9 @@ class Project(Base):
     transcriptions: Mapped[List["Transcription"]] = relationship(
         "Transcription", back_populates="project"
     )
+    alignments: Mapped[List["Transcription"]] = relationship(
+        "DeliveryAlignment", back_populates="project"
+    )
 
 
 class ProjectRepo(Base):
@@ -88,3 +91,17 @@ class Transcription(Base):
 
     def __repr__(self) -> str:
         return f"<Transcription(id={self.id}, session_date={self.session_date})>"
+
+class DeliveryAlignment(Base):
+    __tablename__ = "alignments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(Integer, ForeignKey("projects.id"))
+    pull_url: Mapped[str] = mapped_column(String, nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now()
+    )
+    project: Mapped["Project"] = relationship("Project", back_populates="alignments")
