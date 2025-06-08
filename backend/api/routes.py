@@ -174,7 +174,7 @@ async def add_repo_to_project(
     
     return RepoResponse(id=new_repo.id, name=new_repo.name, repo_url=new_repo.repo_url, project_id=new_repo.project_id)
 
-@router.get("/projects/{project_id}/reload")
+'''@router.get("/projects/{project_id}/reload")
 async def reload_chunks(
     project_id: int,
     user_id: int = Depends(get_current_user),
@@ -221,7 +221,7 @@ async def reload_chunks(
         except Exception as exc:
             raise HTTPException(status_code=500, detail="Failed while storing embeddings in Chroma")
 
-    return {"status": "ok", "message": f"Chunks reloaded"}
+    return {"status": "ok", "message": f"Chunks reloaded"}'''
 
 @router.post("/webhook/github")
 async def github_webhook(request: Request, db: AsyncSession = Depends(get_db)):
