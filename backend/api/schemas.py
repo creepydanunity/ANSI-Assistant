@@ -42,3 +42,29 @@ class ProjectRequest(BaseModel):
 class ReloadRequest(BaseModel):
     token: str
     repo_url: str
+
+class TranscriptData(BaseModel):
+    content: str
+    timestamp: str # Format: dd.mm.YYYY HH:MM
+
+class RepoOut(BaseModel):
+    repo_id: int
+    name: str
+    repo_url: str
+    repo_token: str
+
+class ProjectOut(BaseModel):
+    project_id: int
+    project_name: str
+    repos: List[RepoOut]
+
+class ProjectsRepos(BaseModel):
+    projects: List[ProjectOut]
+
+class TranscriptionRead(BaseModel):
+    id: int
+    last_update: datetime
+    content: str
+
+    class Config:
+        orm_mode = True

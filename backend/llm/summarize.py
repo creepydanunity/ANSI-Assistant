@@ -1,7 +1,6 @@
 import time
 from tqdm import tqdm
 from openai import OpenAI
-from db.util import fingerprint
 from utilities.chunking import ingest_repo
 from core.config import settings
 
@@ -14,7 +13,7 @@ TEMPERATURE = 0.2
 
 
 def generate_description(code: str) -> str | None:
-    prompt = f"""You are a Python expert. Summarize what the following code does in 1–2 clear sentences:
+    prompt = f"""You are a Python expert. Summarize what the following code does in 2-3 clear sentences:
 
 ```python
 {code.strip()}
@@ -36,6 +35,8 @@ def generate_description(code: str) -> str | None:
 
 
 async def enrich_chunks_with_descriptions(repo_link, token):
+    from db.util import fingerprint
+    
     inlist = await ingest_repo(repo_link, token)
     chunks = []
     for chunk in tqdm(inlist, desc="Generating descriptions"):

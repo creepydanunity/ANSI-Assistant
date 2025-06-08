@@ -44,10 +44,12 @@ async def update_chunks(project_id, repo_id, path, content):
         
         chunk_old = collection.get(
             where={
-                "project_id": project_id,
-                "repo_id": repo_id,
-                "file_path": path,
-                "fp": fp
+                "$and": [
+                    {"project_id": project_id},
+                    {"repo_id": repo_id},
+                    {"file_path": path},
+                    {"fp": fp}
+                ]
             },
             limit=1,
             include=["documents", "metadatas", "embeddings"],
@@ -62,9 +64,11 @@ async def update_chunks(project_id, repo_id, path, content):
 
     collection.delete(
         where={
-            "project_id": project_id,
-            "repo_id": repo_id,
-            "file_path": path,
+            "$and": [
+                {"project_id": project_id},
+                {"repo_id": repo_id},
+                {"file_path": path}
+            ]
         }
     )
     
@@ -108,14 +112,19 @@ def store_chunks(project_id, repo_id, chunks):
         safe_path = raw_path.replace("/", "_")
         chunk_id = f"{project_id}_{repo_id}_{safe_path}_{i}"
 
-        existing = collection.get(
-            where={
-                "project_id": project_id,
-                "repo_id": repo_id,
-                "file_path": raw_path,
-                "fp": obj["fp"]
-            }
-        )
+        try:
+            existing = collection.get(
+                where={
+                    "$and": [
+                        {"project_id": project_id},
+                        {"repo_id": repo_id},
+                        {"file_path": raw_path},
+                        {"fp": obj["fp"]}
+                    ]
+                }
+            )
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=e)
 
         if existing["ids"]:
             continue
@@ -134,12 +143,15 @@ def store_chunks(project_id, repo_id, chunks):
             "fp":          obj["fp"]
         })
 
-    collection.add(
-        documents=docs,
-        embeddings=embs,
-        metadatas=metas,
-        ids=ids,
-    )
+    try:
+        collection.add(
+            documents=docs,
+            embeddings=embs,
+            metadatas=metas,
+            ids=ids,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=e)
     
     return {"status": "stored"}
 
@@ -152,9 +164,11 @@ def delete_chunks(
 
     chunks = collection.get(
         where={
-            "project_id": project_id,
-            "repo_id": repo_id,
-            "file_path": file_path,
+            "$and": [
+                {"project_id": project_id},
+                {"repo_id": repo_id},
+                {"file_path": file_path}
+            ]
         }
     )
     if not chunks["metadatas"]:
@@ -162,9 +176,11 @@ def delete_chunks(
 
     collection.delete(
         where={
-            "project_id": project_id,
-            "repo_id": repo_id,
-            "file_path": file_path,
+            "$and": [
+                {"project_id": project_id},
+                {"repo_id": repo_id},
+                {"file_path": file_path}
+            ]
         }
     )
     return {"status": "chunks deleted"}
@@ -179,9 +195,11 @@ def move_chunks(
 
     chunks = collection.get(
         where={
-            "project_id": project_id,
-            "repo_id": repo_id,
-            "file_path": old_path,
+            "$and": [
+                {"project_id": project_id},
+                {"repo_id": repo_id},
+                {"file_path": old_path}
+            ]
         },
         include=["documents", "metadatas", "embeddings"],
     )
@@ -192,7 +210,7 @@ def move_chunks(
     old_meta = chunks["metadatas"] or []
     old_docs = chunks["documents"] or []
     old_ids = chunks["ids"] or []
-    old_embeddings = chunks["embeddings"] or []
+    old_embeddings = chunks["embeddings"]
 
     new_meta = []
 
@@ -212,9 +230,11 @@ def move_chunks(
 
     collection.delete(
         where={
-            "project_id": project_id,
-            "repo_id": repo_id,
-            "file_path": old_path,
+            "$and": [
+                {"project_id": project_id},
+                {"repo_id": repo_id},
+                {"file_path": old_path}
+            ]
         }
     )
 
@@ -225,7 +245,7 @@ def move_chunks(
         ids=old_ids,
     )
 
-def generate_catalog() -> str:
+def generate_catalog(project_id: int) -> str:
     """
     1) Fetches all chunks from Chroma ("codebase" collection).
     2) Groups them by metadata["file_path"].
@@ -234,7 +254,12 @@ def generate_catalog() -> str:
     collection = chromaConfig.client_chroma.get_or_create_collection(name="codebase")
 
     # Fetch every stored document+metadata pair from Chroma
-    all_items = collection.get(include=["documents", "metadatas"])
+    all_items = collection.get(
+        where={
+            "project_id": project_id
+        },
+        include=["documents", "metadatas"]
+    )
     docs: List[str] = all_items.get("documents") or []
     metas: Sequence[Mapping[str, Any]] = all_items.get("metadatas") or []
 
