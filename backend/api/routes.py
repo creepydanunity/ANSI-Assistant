@@ -1,18 +1,22 @@
+from datetime import datetime
 from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException, Request
-from typing import Any, Dict, List, Mapping, Sequence
+from typing import Any, List, Mapping, Sequence
 import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 import logging
-from api.schemas import AskResponse, AskRequest, ProjectRequest, ProjectResponse, RepoRequest, RepoResponse
+from api.schemas import AskResponse, AskRequest, ProjectRequest, ProjectResponse, ProjectsRepos, RepoRequest, RepoResponse, TranscriptData, TranscriptionRead
+from llm.utils import analyze_added
+from utilities.transcription_parser import merge_backlog_from_tasks
 from utilities.pr_parsing import categorize_files, fetch_changed_files
 from llm.prompts import get_ask_prompt, get_ask_system_prompt
 from db.util import add_chunks, delete_chunks, generate_catalog, move_chunks, store_chunks, update_chunks
 from core.deps import get_db
 from auth.utils import get_current_user
-from core.models import Project, ProjectRepo, UserProject
-from llm.api import classify_mode, process_github, process_question
+from core.models import Project, ProjectRepo, Transcription, UserProject
+from llm.api import classify_mode, generate_structured_tasks, process_github, process_question
 from llm.embedding import get_embedding
 from db.dbconfig import chromaConfig
 
@@ -57,6 +61,43 @@ async def project_create(
         created_at=new_project.created_at
     )
 
+@router.get("/projects", response_model=ProjectsRepos)
+async def get_all_projects(
+    db: AsyncSession = Depends(get_db),
+    user_id: int = Depends(get_current_user)
+):
+    stmt = (
+        select(Project)
+        .join(UserProject, UserProject.project_id == Project.id)
+        .filter(UserProject.user_id == user_id)
+        .options(selectinload(Project.repos))
+    )
+
+    result = await db.execute(stmt)
+    projects: Sequence[Project] = result.scalars().all()
+
+    if not projects:
+        raise HTTPException(404, detail="No projects found for this user")
+
+    out_projects = []
+    for p in projects:
+        repos = [
+            {
+                "repo_id":    r.id,
+                "name":       r.name,
+                "repo_url":   r.repo_url,
+                "repo_token": r.token,
+            }
+            for r in p.repos
+        ]
+        out_projects.append({
+            "project_id":   p.id,
+            "project_name": p.name,
+            "repos":        repos
+        })
+
+    return {"projects": out_projects}
+    
 @router.post("/projects/{project_id}/repos", response_model=RepoResponse)
 async def add_repo_to_project(
     project_id: int,
@@ -64,7 +105,6 @@ async def add_repo_to_project(
     db: AsyncSession = Depends(get_db),
     user_id: int = Depends(get_current_user)
 ):
-    
     stmt = select(Project).filter(Project.id == project_id)
     result = await db.execute(stmt)
     project = result.one_or_none()
@@ -132,7 +172,7 @@ async def add_repo_to_project(
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Failed while storing embeddings in Chroma: {exc}")
     
-    return new_repo
+    return RepoResponse(id=new_repo.id, name=new_repo.name, repo_url=new_repo.repo_url, project_id=new_repo.project_id)
 
 @router.get("/projects/{project_id}/reload")
 async def reload_chunks(
@@ -226,14 +266,15 @@ async def github_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     for added_file in categorized_files["added"]:
         await add_chunks(repo_obj.project_id, repo_obj.id, added_file["path"], added_file["content"])
+        summaries = analyze_added(added_file)
 
     for modified_file in categorized_files["modified"]:
         await update_chunks(repo_obj.project_id, repo_obj.id, modified_file["path"], modified_file["content"])
 
-    logger.info(categorized_files)
+    
 
     return {
-        "status": "processed",
+        "status": "ok",
         "removed": len(categorized_files["removed"]),
         "renamed": len(categorized_files["renamed"]),
         "added": len(categorized_files["added"]),
@@ -241,10 +282,25 @@ async def github_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     }
 
 @router.post("/ask", response_model=AskResponse)
-def ask_user_question(
+async def ask_user_question(
     data: AskRequest,
     user_id: int = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
 ) -> Any:
+    stmt = (
+        select(UserProject)
+        .filter(
+            UserProject.project_id == data.project_id,
+            UserProject.user_id == user_id
+        )
+    )
+
+    result = await db.execute(stmt)
+
+    user_project = result.one_or_none()
+    if not user_project:
+        raise HTTPException(status_code=403, detail="Access denied: you are not a member of this project")
+    
     mode = classify_mode(data.question)
     collection = chromaConfig.client_chroma.get_or_create_collection(name="codebase")
     query_vec = get_embedding(data.question)
@@ -294,3 +350,97 @@ def ask_user_question(
     response = process_question(system_prompt, prompt, mode)
 
     return {"mode": mode, "answer": response.choices[0].message.content}
+
+@router.post("/projects/{project_id}/transcripts", response_model=TranscriptionRead)
+async def add_transcript(
+    data: TranscriptData,
+    project_id: int,
+    user_id: int = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = (
+        select(UserProject)
+        .filter(
+            UserProject.project_id == project_id,
+            UserProject.user_id == user_id
+        )
+    )
+
+    result = await db.execute(stmt)
+
+    user_project = result.one_or_none()
+    if not user_project:
+        raise HTTPException(status_code=403, detail="Access denied: you are not a member of this project")
+    
+    dt = datetime.strptime(data.timestamp, "%d.%m.%Y %H:%M") 
+
+    stmt = (
+        select(Transcription)
+        .where(
+            Transcription.project_id == project_id
+        )
+    )
+
+    result = await db.execute(stmt)
+
+    transcription = result.scalar_one_or_none()
+
+    if transcription is None:
+        content = ""
+    else:
+        content = transcription.content
+
+    dd, mm, yy = data.timestamp.split()[0].split(".")
+
+    tasks = generate_structured_tasks(data.content, content, f"{yy}-{mm}-{dd}")
+
+    updated_backlog_dict = merge_backlog_from_tasks(tasks)
+
+    updated_backlog = ""
+
+    for block_lines in updated_backlog_dict.values():
+        updated_backlog += "".join(block_lines)
+
+    if transcription is None:
+        transcription = Transcription(
+            project_id=project_id,
+            content=updated_backlog,
+            last_update=dt
+        )
+        db.add(transcription)
+    else:
+        transcription.content = updated_backlog
+        transcription.last_update = dt
+
+    await db.commit()
+    await db.refresh(transcription)
+
+    return TranscriptionRead(id=transcription.id, last_update=transcription.last_update, content=transcription.content)
+    
+@router.get(
+    "/projects/{project_id}/transcription",
+    response_model=TranscriptionRead
+)
+async def get_transcription(
+    project_id: int,
+    user_id: int = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = (
+        select(UserProject)
+        .filter(
+            UserProject.project_id == project_id,
+            UserProject.user_id == user_id
+        )
+    )
+    res = await db.execute(stmt)
+    if res.scalar_one_or_none() is None:
+        raise HTTPException(403, "Access denied: you are not a member of this project")
+
+    stmt = select(Transcription).where(Transcription.project_id == project_id)
+    res = await db.execute(stmt)
+    transcription = res.scalar_one_or_none()
+    if transcription is None:
+        raise HTTPException(404, "No transcription found for this project")
+
+    return TranscriptionRead(id=transcription.id, last_update=transcription.last_update, content=transcription.content)

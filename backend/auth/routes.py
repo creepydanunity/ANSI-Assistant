@@ -29,10 +29,10 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
 
 @router.post("/token", response_model=Token)
 async def login(
-    form_data: OAuth2PasswordRequestForm = Depends(),
+    form_data: UserCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(User).where(User.email == form_data.username)
+    stmt = select(User).where(User.email == form_data.email)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
 
