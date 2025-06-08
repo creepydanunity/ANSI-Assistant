@@ -31,6 +31,8 @@ General rules:
 - Use the provided meeting date {source_date} as the default for all history and alerts unless the transcript mentions a different one.
 - Do not invent or guess dates.
 - Record contradictions clearly in both `history` and `alerts`.
+- If a decision has not been made and the transcript indicates that the team is still evaluating, record that as an explicit history entry (e.g., "As of {source_date}, decision on X is still pending").
+
 
 Grouping and normalization rules:
 - Group all updates under the same feature or product module. A feature is something like "Analytics Dashboard", "Voice Command", "User Login", etc.
