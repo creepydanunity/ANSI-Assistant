@@ -49,7 +49,7 @@ def get_transcription_prompt():
     - Do not invent or guess dates.
     - Record contradictions clearly in both `history` and `alerts`.
     - If a decision has not been made and the transcript indicates that the team is still evaluating, record that as an explicit history entry (e.g., "As of {source_date}, decision on X is still pending").
-    
+
     Grouping and normalization rules:
     - Group all updates under the same feature or product module. A feature is something like "Analytics Dashboard", "Voice Command", "User Login", etc.
     - Subcomponents like "UI", "Backend", "Access Control", "API", or "STT" must be recorded inside the same task — as part of `history` or `summary`.
@@ -68,3 +68,32 @@ def get_summarization_prompt(filepath, code) -> str:
     ```{code}```
 
     Return only bullet points of what's implemented, added, or modified."""
+
+def get_alignment_prompt(task_md, merge_md) -> str:
+    return f"""
+    You are a senior engineer performing delivery alignment.
+
+    You are given:
+    1. A list of tasks extracted from meetings (task_md)
+    2. A list of summaries of code changes from a merge request (merge_md)
+
+    Instructions:
+
+    Step 1: For each task, determine whether it is **related** to anything done in the merge.
+    - A task is related if at least part of its described behavior or component appears in the merge.
+    - Skip unrelated tasks completely. Do not include them in the report.
+
+    Step 2: For each related task:
+    - Write the task title
+    - List ✅ aligned items: task requirements clearly fulfilled by the merge
+    - List ⚠️ missing items: things the task requires but the merge does not include
+    - List ➕ extra items: merge changes that are not mentioned in the task
+
+    Output format: well-structured Markdown grouped by task title.
+
+    --- TASK SUMMARY ---
+    {task_md}
+
+    --- MERGE SUMMARY ---
+    {merge_md}
+    """

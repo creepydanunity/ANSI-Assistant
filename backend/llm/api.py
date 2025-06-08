@@ -1,7 +1,7 @@
 from datetime import datetime
 import json
 from utilities.transcription_parser import extract_json_from_response
-from llm.prompts import get_intent_prompt, get_summarization_prompt, get_transcription_prompt
+from llm.prompts import get_alignment_prompt, get_intent_prompt, get_summarization_prompt, get_transcription_prompt
 from .embedding import process_chunks
 from .summarize import enrich_chunks_with_descriptions
 from .config import client
@@ -65,6 +65,18 @@ def summarize_file(filepath, code) -> str:
         model="gpt-4o",
         messages=[{"role": "user", "content": get_summarization_prompt(filepath, code)}],
         temperature=0.2
+    )
+
+    if response.choices[0].message.content:
+        return response.choices[0].message.content.strip()
+    return ""
+
+def compare_tasks_and_merge(task_md, merge_md):
+    prompt = get_alignment_prompt(task_md, merge_md)
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1
     )
 
     if response.choices[0].message.content:

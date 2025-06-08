@@ -68,3 +68,15 @@ class TranscriptionRead(BaseModel):
 
     class Config:
         orm_mode = True
+
+class DeliveryAlignmentResponse(BaseModel):
+    id: int
+    pull_url: str
+    content: str
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+        
+class AlignmentsResponse(BaseModel):
+    alignments: List[DeliveryAlignmentResponse]

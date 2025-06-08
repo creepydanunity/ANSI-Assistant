@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 import logging
-from api.schemas import AskResponse, AskRequest, ProjectRequest, ProjectResponse, ProjectsRepos, RepoRequest, RepoResponse, TranscriptData, TranscriptionRead
+from api.schemas import AlignmentsResponse, AskResponse, AskRequest, ProjectRequest, ProjectResponse, ProjectsRepos, RepoRequest, RepoResponse, TranscriptData, TranscriptionRead
 from llm.utils import analyze_added
 from utilities.transcription_parser import merge_backlog_from_tasks
 from utilities.pr_parsing import categorize_files, fetch_changed_files
@@ -15,8 +15,8 @@ from llm.prompts import get_ask_prompt, get_ask_system_prompt
 from db.util import add_chunks, delete_chunks, generate_catalog, move_chunks, store_chunks, update_chunks
 from core.deps import get_db
 from auth.utils import get_current_user
-from core.models import Project, ProjectRepo, Transcription, UserProject
-from llm.api import classify_mode, generate_structured_tasks, process_github, process_question
+from core.models import DeliveryAlignment, Project, ProjectRepo, Transcription, UserProject
+from llm.api import classify_mode, compare_tasks_and_merge, generate_structured_tasks, process_github, process_question
 from llm.embedding import get_embedding
 from db.dbconfig import chromaConfig
 
@@ -266,12 +266,42 @@ async def github_webhook(request: Request, db: AsyncSession = Depends(get_db)):
 
     for added_file in categorized_files["added"]:
         await add_chunks(repo_obj.project_id, repo_obj.id, added_file["path"], added_file["content"])
-    #summaries = analyze_added(categorized_files["added"])
 
     for modified_file in categorized_files["modified"]:
         await update_chunks(repo_obj.project_id, repo_obj.id, modified_file["path"], modified_file["content"])
-
     
+    summaries = analyze_added(categorized_files["added"]) + "\n" + analyze_added(categorized_files["modified"])
+
+    stmt = (
+        select(Transcription)
+        .filter(
+            Transcription.project_id == repo_obj.project_id
+        )
+    )
+
+    result = await db.execute(stmt)
+    transcription = result.scalar_one_or_none()
+
+    if transcription:
+        diff = compare_tasks_and_merge(summaries, transcription.content)
+        alignment = DeliveryAlignment(
+            project_id=repo_obj.project_id,
+            pull_url=payload["pull_request"]["url"],
+            content=diff
+        )
+
+        db.add(alignment)
+        await db.commit()
+        await db.refresh(alignment)
+
+        return {
+            "status": "ok",
+            "delivery_alignment": alignment,
+            "removed": len(categorized_files["removed"]),
+            "renamed": len(categorized_files["renamed"]),
+            "added": len(categorized_files["added"]),
+            "modified": len(categorized_files["modified"])
+        }
 
     return {
         "status": "ok",
@@ -280,6 +310,41 @@ async def github_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         "added": len(categorized_files["added"]),
         "modified": len(categorized_files["modified"])
     }
+
+@router.get("/projects/{project_id}/alignments", response_model=AlignmentsResponse)
+async def get_project_alignments(
+    project_id: int,
+    user_id: int = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = (
+        select(UserProject)
+        .filter(
+            UserProject.project_id == project_id,
+            UserProject.user_id == user_id
+        )
+    )
+
+    result = await db.execute(stmt)
+
+    user_project = result.one_or_none()
+    if not user_project:
+        raise HTTPException(status_code=403, detail="Access denied: you are not a member of this project")
+
+    stmt = (
+        select(DeliveryAlignment)
+        .filter(
+            UserProject.project_id == project_id
+        )
+    )
+
+    result = await db.execute(stmt)
+    alignments = result.scalars().all()
+
+    if not alignments:
+        raise HTTPException(status_code=404, detail="No related delivery alignments found")
+
+    return {"alignments": alignments}
 
 @router.post("/ask", response_model=AskResponse)
 async def ask_user_question(
