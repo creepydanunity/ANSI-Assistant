@@ -1,0 +1,34 @@
+services:
+  db:
+    image: postgres:17
+    container_name: bayaga_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-test_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test_password}
+      POSTGRES_DB: bayaga
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  web:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: bayaga_app
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - db
+    ports:
+      - "8000:8000"
+    volumes:
+      - alembic_versions:/app/alembic/versions
+      - chromadb_data:/app/chromadb
+
+volumes:
+  postgres_data:
+  chromadb_data:
+  alembic_versions:
