@@ -43,11 +43,11 @@ class Project(Base):
     transcriptions: Mapped[List["Transcription"]] = relationship(
         "Transcription", back_populates="project"
     )
-    alignments: Mapped[List["Transcription"]] = relationship(
+    alignments: Mapped[List["DeliveryAlignment"]] = relationship(
         "DeliveryAlignment", back_populates="project"
     )
     glossary: Mapped[List["Glossary"]] = relationship(
-        "DeliveryAlignment", back_populates="project"
+        "Glossary", back_populates="project"
     )
 
 
