@@ -82,7 +82,8 @@ async def update_chunks(project_id, repo_id, path, content):
     
     embedded_chunks = process_chunks(chunks)
     store_chunks(project_id, repo_id, embedded_chunks)
-    restore_chunks(saved_chunks)
+    if saved_chunks:
+        restore_chunks(saved_chunks)
 
 def restore_chunks(chunks):
     collection = chromaConfig.client_chroma.get_or_create_collection(name="codebase")
