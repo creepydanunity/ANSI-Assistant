@@ -518,7 +518,7 @@ async def get_glossary(
     
     undefined_words = await get_undefined_terms(db, project_id)
 
-    return undefined_words
+    return {"glossary": undefined_words}
 
 @router.post(
     "/projects/{project_id}/glossary",
