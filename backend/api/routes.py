@@ -255,11 +255,12 @@ async def github_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     )
 
     result = await db.execute(stmt)
-    repo_obj = result.scalar_one_or_none()
+    repo_obj = result.scalars().all()
     
     if not repo_obj:
         raise HTTPException(404, "Repository token not found")
     
+    repo_obj = repo_obj[0]
     api_url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files"
 
     files = await fetch_changed_files(api_url, repo_obj.token)
