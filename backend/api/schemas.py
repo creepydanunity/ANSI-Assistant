@@ -95,3 +95,6 @@ class GlossaryResponse(BaseModel):
 class GlossaryData(BaseModel):
     id: int
     definition: str
+
+class StatusOK(BaseModel):
+    status: str

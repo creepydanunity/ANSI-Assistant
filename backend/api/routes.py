@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 import logging
-from api.schemas import AlignmentsResponse, AskResponse, AskRequest, GlossaryData, GlossaryResponse, ProjectRequest, ProjectResponse, ProjectsRepos, RepoRequest, RepoResponse, TranscriptData, TranscriptionRead
+from api.schemas import AlignmentsResponse, AskResponse, AskRequest, GlossaryData, GlossaryResponse, ProjectRequest, ProjectResponse, ProjectsRepos, RepoRequest, RepoResponse, StatusOK, TranscriptData, TranscriptionRead
 from db.helper import define_term, get_terms, get_undefined_terms, save_term
 from llm.utils import analyze_added
 from utilities.transcription_parser import merge_backlog_from_tasks
@@ -518,11 +518,11 @@ async def get_glossary(
     
     undefined_words = await get_undefined_terms(db, project_id)
 
-    return undefined_words
+    return {"glossary": undefined_words}
 
 @router.post(
     "/projects/{project_id}/glossary",
-    response_model=GlossaryResponse
+    response_model=StatusOK
 )
 async def add_to_glossary(
     project_id: int,

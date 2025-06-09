@@ -1,5 +1,5 @@
 from datetime import date, datetime, timezone
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import Date, String, Integer, DateTime, ForeignKey, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship, declarative_base
@@ -115,6 +115,6 @@ class Glossary(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     project_id: Mapped[int] = mapped_column(Integer, ForeignKey("projects.id"))
     term: Mapped[str] = mapped_column(String, nullable=False)
-    definition: Mapped[str] = mapped_column(String)
+    definition: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     project: Mapped["Project"] = relationship("Project", back_populates="glossary")
