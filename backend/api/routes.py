@@ -120,6 +120,13 @@ async def add_repo_to_project(
     if not user_project:
         raise HTTPException(status_code=403, detail="User does not have access to this project")
     
+    stmt = select(ProjectRepo).filter(ProjectRepo.repo_url == data.repo_url)
+    result = await db.execute(stmt)
+    existing_repo = result.one_or_none()
+
+    if existing_repo:
+        raise HTTPException(status_code=403, detail="Repo is alrady in use")
+
     parsed = urlparse(data.repo_url)
     parts = parsed.path.strip("/").split("/")
     if len(parts) < 2:
