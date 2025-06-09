@@ -335,7 +335,7 @@ async def get_project_alignments(
     stmt = (
         select(DeliveryAlignment)
         .filter(
-            UserProject.project_id == project_id
+            DeliveryAlignment.project_id == project_id
         )
     )
 

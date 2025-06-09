@@ -22,7 +22,7 @@ jobs:
             password: ${{ secrets.SERVER_SSH_KEY }}
             script: |
               cd /root/project/BaYaga
-              docker compose down -v
+              docker compose down
 
         - name: Copy files to server
           uses: appleboy/scp-action@v0.1.0
