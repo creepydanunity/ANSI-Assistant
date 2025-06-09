@@ -7,7 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 import logging
-from api.schemas import AlignmentsResponse, AskResponse, AskRequest, ProjectRequest, ProjectResponse, ProjectsRepos, RepoRequest, RepoResponse, TranscriptData, TranscriptionRead
+from api.schemas import AlignmentsResponse, AskResponse, AskRequest, GlossaryData, GlossaryResponse, ProjectRequest, ProjectResponse, ProjectsRepos, RepoRequest, RepoResponse, TranscriptData, TranscriptionRead
+from db.helper import define_term, get_terms, get_undefined_terms, save_term
 from llm.utils import analyze_added
 from utilities.transcription_parser import merge_backlog_from_tasks
 from utilities.pr_parsing import categorize_files, fetch_changed_files
@@ -16,7 +17,7 @@ from db.util import add_chunks, delete_chunks, generate_catalog, move_chunks, st
 from core.deps import get_db
 from auth.utils import get_current_user
 from core.models import DeliveryAlignment, Project, ProjectRepo, Transcription, UserProject
-from llm.api import classify_mode, compare_tasks_and_merge, generate_structured_tasks, process_github, process_question
+from llm.api import classify_mode, compare_tasks_and_merge, extract_glossary_llm, generate_structured_tasks, process_github, process_question
 from llm.embedding import get_embedding
 from db.dbconfig import chromaConfig
 
@@ -416,7 +417,7 @@ async def ask_user_question(
 
     return {"mode": mode, "answer": response.choices[0].message.content}
 
-@router.post("/projects/{project_id}/transcripts", response_model=TranscriptionRead)
+@router.post("/projects/{project_id}/transcription", response_model=TranscriptionRead)
 async def add_transcript(
     data: TranscriptData,
     project_id: int,
@@ -480,8 +481,73 @@ async def add_transcript(
     await db.commit()
     await db.refresh(transcription)
 
-    return TranscriptionRead(id=transcription.id, last_update=transcription.last_update, content=transcription.content)
+    raw_glossary_entries = extract_glossary_llm(data.content)
     
+    saved_entries = await get_terms(db, project_id)
+
+    for entry in raw_glossary_entries:
+        term = entry.get("term")
+        confidence = entry.get("confidence")
+        if term and term not in saved_entries and confidence and confidence < 0.69:
+            await save_term(db, project_id, term)
+
+    return TranscriptionRead(id=transcription.id, last_update=transcription.last_update, content=transcription.content)
+
+@router.get(
+    "/projects/{project_id}/glossary",
+    response_model=GlossaryResponse
+)
+async def get_glossary(
+    project_id: int,
+    user_id: int = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = (
+        select(UserProject)
+        .filter(
+            UserProject.project_id == project_id,
+            UserProject.user_id == user_id
+        )
+    )
+
+    result = await db.execute(stmt)
+
+    user_project = result.one_or_none()
+    if not user_project:
+        raise HTTPException(status_code=403, detail="Access denied: you are not a member of this project")
+    
+    undefined_words = await get_undefined_terms(db, project_id)
+
+    return undefined_words
+
+@router.post(
+    "/projects/{project_id}/glossary",
+    response_model=GlossaryResponse
+)
+async def add_to_glossary(
+    project_id: int,
+    data: GlossaryData,
+    user_id: int = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = (
+        select(UserProject)
+        .filter(
+            UserProject.project_id == project_id,
+            UserProject.user_id == user_id
+        )
+    )
+
+    result = await db.execute(stmt)
+
+    user_project = result.one_or_none()
+    if not user_project:
+        raise HTTPException(status_code=403, detail="Access denied: you are not a member of this project")
+    
+    await define_term(db, data.id, data.definition)
+
+    return {"status": "ok"}
+
 @router.get(
     "/projects/{project_id}/transcription",
     response_model=TranscriptionRead

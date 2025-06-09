@@ -97,3 +97,21 @@ def get_alignment_prompt(task_md, merge_md) -> str:
     --- MERGE SUMMARY ---
     {merge_md}
     """
+
+def get_glossary_prompt(text) -> str:
+    return f"""
+    You are a glossary extractor for truly obscure, team-specific, or ambiguous IT abbreviations.
+    For each acronym you find in the transcript, include an object with:
+    - "term": the acronym,
+    - "model_guess": your best guess at its meaning,
+    - "confidence": a number between 0 and 1 indicating your self-assessed confidence.
+
+    Output a JSON array like:
+    [
+    {{ "term": "gtv", "model_guess": "Google TV",      "confidence": 0.55 }},
+    {{ "term": "МС",  "model_guess": "multicluster service", "confidence": 0.40 }}
+    ]
+
+    Transcript:
+    {text[:5000]}
+    """
