@@ -1,7 +1,9 @@
 from datetime import datetime
 import json
+import time
+from typing import Any, Dict, List
 from utilities.transcription_parser import extract_json_from_response
-from llm.prompts import get_alignment_prompt, get_intent_prompt, get_summarization_prompt, get_transcription_prompt
+from llm.prompts import get_alignment_prompt, get_glossary_prompt, get_intent_prompt, get_summarization_prompt, get_transcription_prompt
 from .embedding import process_chunks
 from .summarize import enrich_chunks_with_descriptions
 from .config import client
@@ -82,3 +84,36 @@ def compare_tasks_and_merge(task_md, merge_md):
     if response.choices[0].message.content:
         return response.choices[0].message.content.strip()
     return ""
+
+def extract_glossary_llm(text: str, max_retries: int = 2) -> List[Dict[str, Any]]:
+    """Extract acronyms with self-assessed confidence scores from the LLM."""
+    prompt = get_glossary_prompt(text)
+    
+    for attempt in range(1, max_retries + 2):
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Provide a JSON array of terms with model_guess and confidence."},
+                {"role": "user",   "content": prompt}
+            ],
+            temperature=0.2
+        )
+        raw = (response.choices[0].message.content or "").strip()
+
+        if raw.startswith("```"):
+            lines = raw.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines.pop(0)
+            if lines and lines[-1].startswith("```"):
+                lines.pop(-1)
+            raw = "\n".join(lines).strip()
+
+
+        try:
+            entries = json.loads(raw)
+            return entries
+        except json.JSONDecodeError:
+            if attempt > max_retries:
+                return []
+            time.sleep(attempt)
+    return []

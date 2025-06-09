@@ -80,3 +80,18 @@ class DeliveryAlignmentResponse(BaseModel):
         
 class AlignmentsResponse(BaseModel):
     alignments: List[DeliveryAlignmentResponse]
+
+class GlossaryWordResponse(BaseModel):
+    id: int
+    project_id: int
+    term: str
+
+    class Config:
+        orm_mode = True
+
+class GlossaryResponse(BaseModel):
+    glossary: List[GlossaryWordResponse]
+
+class GlossaryData(BaseModel):
+    id: int
+    definition: str

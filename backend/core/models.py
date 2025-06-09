@@ -46,6 +46,9 @@ class Project(Base):
     alignments: Mapped[List["Transcription"]] = relationship(
         "DeliveryAlignment", back_populates="project"
     )
+    glossary: Mapped[List["Glossary"]] = relationship(
+        "DeliveryAlignment", back_populates="project"
+    )
 
 
 class ProjectRepo(Base):
@@ -105,3 +108,13 @@ class DeliveryAlignment(Base):
         server_default=func.now()
     )
     project: Mapped["Project"] = relationship("Project", back_populates="alignments")
+
+class Glossary(Base):
+    __tablename__ = "glossary"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    project_id: Mapped[int] = mapped_column(Integer, ForeignKey("projects.id"))
+    term: Mapped[str] = mapped_column(String, nullable=False)
+    definition: Mapped[str] = mapped_column(String)
+
+    project: Mapped["Project"] = relationship("Project", back_populates="glossary")
