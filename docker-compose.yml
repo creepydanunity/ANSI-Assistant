@@ -6,7 +6,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-test_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-test_password}
-      POSTGRES_DB: bayaga
+      POSTGRES_DB: ansi
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
