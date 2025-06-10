@@ -5,7 +5,7 @@
 - `touch .env` # Fill .env file. Example below.
 - `cd ..` # Return to root
 - `docker compose up --build -d`
-- Check API Docs on http://localhost:80/docs #( Current API documentation available at http://64.225.65.211/redoc )
+- Check API Docs on http://localhost:80/docs **( Current API documentation available at http://64.225.65.211/redoc )**
 
 ## backend/.env
 ```text
